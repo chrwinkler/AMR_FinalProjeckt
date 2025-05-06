@@ -20,7 +20,7 @@ odomSub = ros2subscriber(controlNode, '/odom', @odomCallback); % odometry topic
 scanSub = ros2subscriber(controlNode, '/scan', @scanCallback, 'Reliability', 'besteffort'); % laser scan topic
 
 % Pause to allow ROS subscriptions to initialize
-pause(0.5);
+pause(1);
     
 try
     %% Define publishers
@@ -32,20 +32,21 @@ try
     %% Create figures for position and heading
     %plotter = TurtleBotPlot();
     %% Find path
-    map = projmap();
-    scan_left = scan.ranges(265:275);
+    prog = 0;
+    map = projmap(prog);
+    scan_right = scan.ranges(265:275);
     scan_back = scan.ranges(175:185);
-    avg_left = mean(scan_left);
-    avg_back = mean(scan_back);
-    y_wall = 19;
-    x_wall = 0.5;
-    start = [x_wall + avg_left, y_wall + avg_back];
-    goal = [9.6, 19.9];
+    avg_right = double(mean(scan_right));
+    avg_back = double(mean(scan_back));
+    y_wall = 25;
+    x_wall = 0.7;
+    start = [x_wall + avg_back y_wall + avg_right];
+    goal = [12.2  26.2];
     path = new_createPRMpath(start, goal, map);
     x_waypoints = path(:,1);
     y_waypoints = path(:,2);
     t_waypoints = 1:length(path);
-    
+    Offset = start;
     % Define the finer resolution for interpolation
     t_fine = linspace(1, length(path), 50); % 25 intermediate points
         
@@ -75,7 +76,7 @@ try
     i = 0;
    
     %% Infinite loop for real-time visualization, until the figure is closed
-    while i <= length(x_interp)
+    while true %i <= length(x_interp)
         if (prevErrorPos(1) < 0.3 && i<=length(x_interp) -1)
             i = i + 1;
         end
@@ -85,15 +86,33 @@ try
             visualise = updatePositionDesired(visualise, position_desired);
         end
         %% Get the robot's current position and heading
-        position = [pose.position.x pose.position.y] - init_pos + [0.4 0.36];
+        position = [pose.position.x pose.position.y] - init_pos + Offset;
         quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
         orientation = quat2eul(quat);  % Convert quaternion to Euler angles
-        heading = (orientation(3));% - init_heading; % Extract heading (yaw)
+        heading =  wrapToPi(orientation(3) - init_heading);% - init_heading; % Extract heading (yaw)
         if(toc(time) - lastVisualUpdate > visualUpdateRate)
             visualise = updatePose(visualise, position, heading);
         end
-        if (abs(position(1) - 1.03) < 0.05 && abs(position(2) - 0.39) < 0.05 && i == length(x_interp))
-            break
+        if (abs(position(1) - goal(1)) < 0.05 && abs(position(2) - goal(2)) < 0.05 && i == length(x_interp))
+            pause(2.0);
+            prog = 1;
+            map = projmap(prog);
+            i = 0;
+            start = [position(1) position(2)];
+            goal = [27.4 7.4];
+            path = new_createPRMpath(start, goal, map);
+            x_waypoints = path(:,1);
+            y_waypoints = path(:,2);
+            t_waypoints = 1:length(path);
+            
+            % Define the finer resolution for interpolation
+            t_fine = linspace(1, length(path), 50); % 25 intermediate points
+                
+            % Interpolate x and y positions
+            x_interp = interp1(t_waypoints, x_waypoints, t_fine, 'linear');
+            y_interp = interp1(t_waypoints, y_waypoints, t_fine, 'linear');
+            continue;
+
         end
         %% Process and plot laser scan data
         cart = rosReadCartesian(scan);  % Convert scan to Cartesian coordinates
