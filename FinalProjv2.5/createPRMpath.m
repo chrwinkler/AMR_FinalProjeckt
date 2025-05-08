@@ -11,7 +11,7 @@ map.inflate(robot_size_side);
 %% Probabilistic Roadmap method
 figure('Name','PRM map', 'NumberTitle','off')
 prm = mobileRobotPRM(map); % create prm planner
-prm.NumNodes = 100;
+prm.NumNodes = 50;
 prm.show() % plot the roadmap
 
 path = prm.findpath(start, goal); % query planner for path

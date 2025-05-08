@@ -1,17 +1,33 @@
 function control_center()
     % --- Init ROS2 & Topics ---
-    ros2init;
-    scanSub = rossubscriber('/scan', 'sensor_msgs/LaserScan');
-    odomSub = rossubscriber('/odom', 'nav_msgs/Odometry');
-    velPub = ros2publisher('/cmd_vel', 'geometry_msgs/Twist');
+    %ros2init;
+    %% Clear workspace, command window, and close all figures
+    clear all
+    clc
+    close all
+    
+    %% Declare global variables for robot pose and laser scan data
+    global pose scan imu
+    
+    %% Set the ROS domain ID for communication
+    setenv('ROS_DOMAIN_ID', '30');
+    
+    %% Display available ROS2 topics (for debug)
+    ros2 topic list
+    
+    %% Create a ROS2 node for communication
+    controlNode = ros2node('/base_station');
+    scanSub = ros2subscriber(controlNode,'/scan', 'sensor_msgs/LaserScan');
+    odomSub = ros2subscriber(controlNode,'/odom', 'nav_msgs/Odometry');
+    velPub = ros2publisher(controlNode,'/cmd_vel', 'geometry_msgs/Twist');
     
     % --- Load Map A→B ---
     prog = "AB";
-    map = projmap(prog);
+    map = projectMap(prog);
     start = [0.3, 0.3];
     goal = [3.8, 2.2];
 
-    prm = new_createPRMpath(map, start, goal);
+    prm = createPRMpath(start, goal, map);
     visualiser = TurtleBotVisualise(map);
 
     % --- Initialize Control State ---

@@ -2,10 +2,10 @@ function map = projmap(prog)
 
     robot_size = 0.07;
     
-    if prog == 0
+    if prog == "AB"
         image = imread("shannonAB.png");
     end
-    if prog == 1
+    if prog == "BC"
         image = imread("shannonBC.png")
     end
     grayimage = rgb2gray(image);
