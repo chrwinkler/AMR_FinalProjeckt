@@ -1,245 +1,26 @@
-%% Clear workspace, command window, and close all figures
-clear all
-clc
-close all
+function [velMsg, current_index] = path_follow(pose, prm, current_index, velPub)
+    waypoints = prm.Path;
+    kp = 0.5; ka = 1.0;
 
-%% Declare global variables for robot pose and laser scan data
-global pose scan
-
-%% Set the ROS domain ID for communication
-setenv('ROS_DOMAIN_ID', '30');
-
-%% Display available ROS2 topics (for debug)
-ros2 topic list
-
-%% Create a ROS2 node for communication
-controlNode = ros2node('/base_station');
-
-%% Define subscribers
-odomSub = ros2subscriber(controlNode, '/odom', @odomCallback); % odometry topic
-scanSub = ros2subscriber(controlNode, '/scan', @scanCallback, 'Reliability', 'besteffort'); % laser scan topic
-
-% Pause to allow ROS subscriptions to initialize
-pause(1);
-    
-try
-    %% Define publishers
-    cmdPub = ros2publisher(controlNode, '/cmd_vel', 'geometry_msgs/Twist');
-    
-    %% Create figure for TurtleBot's data
-    visualise = TurtleBotVisualise();
-    
-    %% Create figures for position and heading
-    %plotter = TurtleBotPlot();
-    %% Find path
-    prog = 0;
-    map = projmap(prog);
-    scan_right = scan.ranges(265:275);
-    scan_back = scan.ranges(175:185);
-    avg_right = double(mean(scan_right));
-    avg_back = double(mean(scan_back));
-    y_wall = 25;
-    x_wall = 0.7;
-    start = [x_wall + avg_back y_wall + avg_right];
-    goal = [12.2  26.2];
-    path = new_createPRMpath(start, goal, map);
-    x_waypoints = path(:,1);
-    y_waypoints = path(:,2);
-    t_waypoints = 1:length(path);
-    Offset = start;
-    % Define the finer resolution for interpolation
-    t_fine = linspace(1, length(path), 50); % 25 intermediate points
-        
-    % Interpolate x and y positions
-    x_interp = interp1(t_waypoints, x_waypoints, t_fine, 'linear');
-    y_interp = interp1(t_waypoints, y_waypoints, t_fine, 'linear');
-
-    %% Initial position
-    init_pos = [pose.position.x pose.position.y];
-    quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
-    orientation = quat2eul(quat);  % Convert quaternion to Euler angles
-    init_heading = orientation(3); % Extract heading (yaw)
-    
-    %% PID variables
-    Kp_pos = 0.3; Ki_pos = 0.00001; Kd_pos = 0.04;
-
-    Kp_ang = 0.3; Ki_ang = 0.0001; Kd_ang = 0.2;
-    %% PID error variables
-    prevErrorPos = 0;
-    integralErrorPos = 0;
-    prevErrorAng = 0;
-    integralErrorAng = 0;
-    
-    time = tic;
-    visualUpdateRate = 0.05;
-    lastVisualUpdate = toc(time);
-    i = 0;
-   
-    %% Infinite loop for real-time visualization, until the figure is closed
-    while true %i <= length(x_interp)
-        if (prevErrorPos(1) < 0.3 && i<=length(x_interp) -1)
-            i = i + 1;
-        end
-        position_desired = [x_interp(i) y_interp(i)]
-        %% Visialise desired position
-        if(toc(time) - lastVisualUpdate > visualUpdateRate)
-            visualise = updatePositionDesired(visualise, position_desired);
-        end
-        %% Get the robot's current position and heading
-        position = [pose.position.x pose.position.y] - init_pos + Offset;
-        quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
-        orientation = quat2eul(quat);  % Convert quaternion to Euler angles
-        heading =  wrapToPi(orientation(3) - init_heading);% - init_heading; % Extract heading (yaw)
-        if(toc(time) - lastVisualUpdate > visualUpdateRate)
-            visualise = updatePose(visualise, position, heading);
-        end
-        if (abs(position(1) - goal(1)) < 0.05 && abs(position(2) - goal(2)) < 0.05 && i == length(x_interp))
-            pause(2.0);
-            prog = 1;
-            map = projmap(prog);
-            i = 0;
-            start = [position(1) position(2)];
-            goal = [27.4 7.4];
-            path = new_createPRMpath(start, goal, map);
-            x_waypoints = path(:,1);
-            y_waypoints = path(:,2);
-            t_waypoints = 1:length(path);
-            
-            % Define the finer resolution for interpolation
-            t_fine = linspace(1, length(path), 50); % 25 intermediate points
-                
-            % Interpolate x and y positions
-            x_interp = interp1(t_waypoints, x_waypoints, t_fine, 'linear');
-            y_interp = interp1(t_waypoints, y_waypoints, t_fine, 'linear');
-            continue;
-
-        end
-        %% Process and plot laser scan data
-        cart = rosReadCartesian(scan);  % Convert scan to Cartesian coordinates
-        cart = cart * [cos(heading), -sin(heading); sin(heading), cos(heading)]' + position; % Transform based on robot position and heading
-        if(toc(time) - lastVisualUpdate > visualUpdateRate)
-            visualise = updateScan(visualise, cart);
-           
-            lastVisualUpdate = toc(time);
-        end
-        %% Find pos Error
-        e_x = position_desired(1) - position(1);
-        e_y = position_desired(2) - position(2);
-        errorPos = norm(position_desired - position);
-        %errorPos = (position_desired - position);
-        deltaErrorPos = (errorPos - prevErrorPos);
-        integralErrorPos = integralErrorPos + errorPos;
-
-        %% Find heading error
-        desiredHeading = atan2(e_y,e_x);
-        errorAng = atan2(sin(desiredHeading - heading), cos(desiredHeading - heading));
-        %errorAng = desiredHeading - heading;
-        deltaErrorAng = (errorAng - prevErrorAng);
-        integralErrorAng = integralErrorAng + errorAng;
-        if errorAng > pi
-            errorAng = errorAng - 2*pi;
-        elseif errorAng < -pi
-            errorAng = errorAng + 2*pi;
-        end
-       
-        %% PID controller for heading
-        angularVelocity = Kp_ang * errorAng + Ki_ang * integralErrorAng + Kd_ang * deltaErrorAng;
-
-        %% PID controller for position
-        linearVelocity = Kp_pos * errorPos + Ki_pos * integralErrorPos + Kd_pos * deltaErrorPos;
-        linearVelocity = linearVelocity * (1 - min(abs(angularVelocity) / 1.0, 1));
-        
-        prevErrorAng = errorAng;
-        prevErrorPos = errorPos;
-        
-        %% Obstacle avoidance
-        scan_front = [scan.ranges(351:360); scan.ranges(1:10)];
-        scan_back = scan.ranges(171:190);
-        
-        d_0 = 0.05;   % Influence distance
-        beta = 0.0001;  % Strength of repulsion
-        
-        % Initialize repulsive force vectors
-        fr_front = zeros(length(scan_front), 2);
-        fr_back = zeros(length(scan_back), 2);   
-        for i = 1:length(scan_front)
-            if scan_front(i) <= d_0 && scan_front(i) > 0  % Valid range
-                angle = deg2rad(351 + i - 1);  % Convert to radians (assumes scan angle is known)
-                magnitude = (2 * beta / scan_front(i)^2) * (1/scan_front(i) - 1/d_0);
-                fr_front(i,1) = - magnitude * cos(angle);  % X component
-                fr_front(i,2) = - magnitude * sin(angle);  % Y component
-            end
-        end
-        
-        for i = 1:length(scan_back)
-            if scan_back(i) <= d_0 && scan_back(i) > 0
-                angle = deg2rad(171 + i - 1);
-                magnitude = (2 * beta / scan_back(i)^2) * (1/scan_back(i) - 1/d_0);
-                fr_back(i,1) = magnitude * cos(angle);
-                fr_back(i,2) = magnitude * sin(angle);
-            end
-        end
-        
-        % Compute total repulsive force
-        F_total = sum(fr_front,1) - sum(fr_back,1);
-
-        
-        repulsiveX = F_total(1);
-        repulsiveY = F_total(2);
-        %linearVelocity = 0;
-        %angularVelocity = 0;
-        linearVelocity = linearVelocity + repulsiveX;
-        angularVelocity = angularVelocity + repulsiveY;
-        
-        %% Publish velocity commands
-        cmdMsg = ros2message('geometry_msgs/Twist');
-        cmdMsg.linear.x = clip(linearVelocity, -0.2, 0.2);
-        cmdMsg.angular.z = clip(angularVelocity, -2.0, 2.0);
-        send(cmdPub, cmdMsg);
-    
-        %% Pause to visualize and delete old plots
-        pause(0.01)
-    
-        %% Exit the loop if the figure is closed
-        if size(findobj(visualise.fig)) == 0
-            ME = MException('NonExeption:EndProgram', 'The program was closed.');
-            throw(ME)
-        end
+    if current_index > size(waypoints, 1)
+        velMsg = ros2message("geometry_msgs/Twist");
+        return;
     end
-    disp("Reached goal")
-    cmdMsg = ros2message('geometry_msgs/Twist');
-    cmdMsg.Linear.X = 0;
-    cmdMsg.Angular.Z = 0;
-    send(cmdPub, cmdMsg);
-catch ME
-    % Stop the robot
-    cmdMsg = ros2message('geometry_msgs/Twist');
-    cmdMsg.Linear.X = 0;
-    cmdMsg.Angular.Z = 0;
-    send(cmdPub, cmdMsg);
-    
-    % Clean up ROS subscriptions
-    clear odomSub scanSub
 
-    % Show the error
-    if ~strcmp(ME.identifier, 'NonExeption:EndProgram')
-        rethrow(ME)
+    goal = waypoints(current_index, :);
+    dx = goal(1) - pose(1);
+    dy = goal(2) - pose(2);
+    distance = norm([dx dy]);
+
+    if distance < 0.2
+        current_index = current_index + 1;
     end
-end 
 
-%% Callback functions
-function odomCallback(message)
-    % Use global variable to store the robot's position and orientation
-    global pose
+    angle_to_goal = atan2(dy, dx);
+    angle_diff = wrapToPi(angle_to_goal - pose(3));
 
-    % Extract position and orientation data from the ROS message
-    pose = message.pose.pose;
-end
-
-function scanCallback(message)
-    % Use global variable to store laser scan data
-    global scan
-
-    % Save the laser scan message
-    scan = message;
+    % PID control
+    velMsg = ros2message("geometry_msgs/Twist");
+    velMsg.linear.x = kp * distance;
+    velMsg.angular.z = ka * angle_diff;
 end
