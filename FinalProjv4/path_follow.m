@@ -4,7 +4,7 @@ clc
 close all
 
 %% Declare global variables for robot pose and laser scan data
-global pose scan
+global pose scan image
 
 %% Set the ROS domain ID for communication
 setenv('ROS_DOMAIN_ID', '30');
@@ -18,7 +18,7 @@ controlNode = ros2node('/base_station');
 %% Define subscribers
 odomSub = ros2subscriber(controlNode, '/odom', @odomCallback); % odometry topic
 scanSub = ros2subscriber(controlNode, '/scan', @scanCallback, 'Reliability', 'besteffort'); % laser scan topic
-
+imageSub = ros2subscriber(controlNode, '/camera/image_raw/compressed', @imageCallback); % image topic
 % Pause to allow ROS subscriptions to initialize
 pause(1);
     
@@ -41,7 +41,7 @@ try
     y_wall = 25;
     x_wall = 0.7;
     start = [x_wall + avg_back y_wall + avg_right];
-    goal = [12.2  26.2];
+    goal = [12.2  25.3333];
     path = new_createPRMpath(start, goal, map);
     x_waypoints = path(:,1);
     y_waypoints = path(:,2);
@@ -153,11 +153,14 @@ try
         prevErrorPos = errorPos;
         
         %% Obstacle avoidance
-        scan_front = [scan.ranges(351:360); scan.ranges(1:10)];
-        scan_back = scan.ranges(171:190);
+        F_total = 0;
+        attractive = 0;
+
+        scan_front = [scan.ranges(346:360); scan.ranges(1:15)];
+        scan_back = scan.ranges(166:195);
         
-        d_0 = 1;   % Influence distance
-        beta = 0.1;  % Strength of repulsion
+        d_0 = 0.7;   % Influence distance
+        beta = 0.001;  % Strength of repulsion
         
         % Initialize repulsive force vectors
         fr_front = zeros(length(scan_front), 2);
@@ -167,18 +170,18 @@ try
             if scan_front(i) <= d_0 && scan_front(i) > 0  % Valid range
                 angle = deg2rad(351 + i - 1);  % Convert to radians (assumes scan angle is known)
                 magnitude = -(2 * beta / scan_front(i)^2) * (1/scan_front(i) - 1/d_0);
-                fr_front(i,1) =  magnitude * cos(angle);  % X component
-                fr_front(i,2) =  magnitude * sin(angle);  % Y component
+                fr_front(i,1) =  magnitude * cos(angle) * 0.5;  % X component
+                fr_front(i,2) =  magnitude * sin(angle) * 1.5;  % Y component
             end
         end
         
         for i = 1:length(scan_back)
             if scan_back(i) <= d_0 && scan_back(i) > 0
                 angle = deg2rad(171 + i - 1);
-                magnitude = (2 * beta / scan_back(i)^2) * (1/scan_back(i) - 1/d_0);
+                magnitude = -(2 * beta / scan_back(i)^2) * (1/scan_back(i) - 1/d_0);
                
-                fr_back(i,1) = magnitude * cos(angle);
-                fr_back(i,2) = magnitude * sin(angle);
+                fr_back(i,1) = magnitude * cos(angle) * 0.7;
+                fr_back(i,2) = magnitude * sin(angle) * 1.5;
                 
             end
         end
@@ -255,4 +258,12 @@ function scanCallback(message)
 
     % Save the laser scan message
     scan = message;
+end
+
+function imageCallback(message)
+    % Use global variable to store laser scan data
+    global image
+
+    % Save the laser scan message
+    image = rosReadImage(message);
 end

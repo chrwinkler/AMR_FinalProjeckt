@@ -1,5 +1,5 @@
 function map = projmap(prog)
-
+    prog = 0;
     robot_size = 0.07;
     
     if prog == 0
