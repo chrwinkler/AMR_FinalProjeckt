@@ -1,0 +1,28 @@
+function circleSearch(prog)
+done = 0;
+distance = 0;
+nr_steps = 63;
+    if prog == 0
+        goal_set = []
+        while done == 0
+            
+            i = 0;
+            while (distance == 0 || i < nr_steps)
+                %% Publish velocity commands
+                cmdMsg = ros2message('geometry_msgs/Twist');
+                cmdMsg.linear.x = 0;
+                cmdMsg.angular.z = 0.2;
+                send(cmdPub, cmdMsg);
+                pause(1)
+                distance = circleIdentify();
+                i = i + 1;
+            end
+            cmdMsg = ros2message('geometry_msgs/Twist');
+            cmdMsg.linear.x = 0;
+            cmdMsg.angular.z = 0;
+            send(cmdPub, cmdMsg);
+
+
+        end
+
+end
