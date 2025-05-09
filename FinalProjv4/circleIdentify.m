@@ -11,8 +11,8 @@ function distance = circleIdentify()
     %blue_mask = (hue > 0.55) & (hue < 0.7);  % Blue
     %green_mask = (hue > 0.20) & (hue < 0.50); % Green
     %red_mask = (hue > 0.95) | (hue < 0.05);
-    orange_mask = (hue > 0.0) & (hue < 0.0); % Orange
-    purple_mask = (hue > 0.0) & (hue < 0.0); % Purple
+    orange_mask = (hue > 0.09) & (hue < 0.15); % Orange
+    purple_mask = (hue > 0.68) & (hue < 0.77); % Purple
 
     color_mask = orange_mask | purple_mask;
     saturation_mask = saturation > 0.2;  % Ensure it's not a dull color
@@ -34,7 +34,7 @@ function distance = circleIdentify()
     se = strel('disk',5);
     imBW = imopen(imBW, se);
     imBW = imclose(imBW, se);
-
+    
     [centers, radii, metric] = imfindcircles(imBW, [10 500], 'ObjectPolarity','bright', 'Sensitivity',0.87);
     circle_diameter = radii * 2
     f = 1247;

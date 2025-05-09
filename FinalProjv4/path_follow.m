@@ -94,7 +94,11 @@ try
             visualise = updatePose(visualise, position, heading);
         end
         if (abs(position(1) - goal(1)) < 0.05 && abs(position(2) - goal(2)) < 0.05 && i == length(x_interp))
-            pause(2.0);
+            cmdMsg = ros2message('geometry_msgs/Twist');
+            cmdMsg.Linear.X = 0;
+            cmdMsg.Angular.Z = 0;
+            send(cmdPub, cmdMsg);
+            circleSearch(prog);
             prog = 1;
             map = projmap(prog);
             i = 0;
