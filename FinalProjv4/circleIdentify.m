@@ -1,4 +1,4 @@
-function distance = circleIdentify(image)
+function distance = circleIdentify(image, prog)
     im = image;
     HSV = rgb2hsv(im);  % Correct usage
 
@@ -14,10 +14,15 @@ function distance = circleIdentify(image)
     orange_mask = (hue > 0.1) & (hue < 0.15); % Orange
     purple_mask = (hue > 0.7) & (hue < 0.85); % Purple
         
-    color_mask = orange_mask | purple_mask;
+    
     saturation_mask = saturation > 0.3;  % Ensure it's not a dull color
-    value_mask = value > 0.5;  % Ensure brightness
-
+    if prog == 0
+        value_mask = value > 0.5;
+        color_mask = orange_mask;
+    else
+        value_mask = value > 0.3;
+        color_mask = purple_mask;
+    end
     % Combine masks
     mask =  color_mask & saturation_mask & value_mask;
 

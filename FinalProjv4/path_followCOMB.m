@@ -32,7 +32,7 @@ try
     %% Create figures for position and heading
     %plotter = TurtleBotPlot();
     %% Find path
-    heading_res = 0;
+    
 
     prog = 0;
     map = projmap(prog);
@@ -74,10 +74,18 @@ try
     integralErrorAng = 0;
     
     time = tic;
-    visualUpdateRate = 0.2;
+    visualUpdateRate = 0.5;
     lastVisualUpdate = toc(time);
     i = 0;
-   
+    quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
+    orientation = quat2eul(quat);  % Convert quaternion to Euler angles
+    heading =  wrapToPi(orientation(3) - init_heading);% - init_heading; % Extract heading (yaw)
+    raw_pos = [pose.position.x pose.position.y];
+    relative_pos = raw_pos - init_pos;
+    rotation_matrix = [cos(-init_heading), -sin(-init_heading); sin(-init_heading), cos(-init_heading)];
+    position = (rotation_matrix * relative_pos')' + start;
+    pause(1);
+    init_timer = tic();
     %% Infinite loop for real-time visualization, until the figure is closed
     while prog < 2 %i <= length(x_interp)
         if (prevErrorPos < 0.5 && i<=length(x_interp) -1)
@@ -103,94 +111,9 @@ try
         if(toc(time) - lastVisualUpdate > visualUpdateRate)
             visualise = updatePose(visualise, position, heading);
         end
-        %% Reset heading in hallway
-        if heading_res == 4 && position(1) > 9.5
-            cmdMsg = ros2message('geometry_msgs/Twist');
-            cmdMsg.linear.x = 0;
-            cmdMsg.angular.z = 0;
-            send(cmdPub, cmdMsg);
-            
-            heading_res = 1;
-            pause(0.1);
+        
 
-            cmdMsg = ros2message('geometry_msgs/Twist');
-            cmdMsg.linear.x = 0;
-            cmdMsg.angular.z = 0.5;
-            send(cmdPub, cmdMsg);
-
-            
-            while abs(heading) - 0 > 0.04
-                pause(0.1);
-                quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
-                orientation = quat2eul(quat);  % Convert quaternion to Euler angles
-                heading =  wrapToPi(orientation(3) - init_heading);
-            end
-            cmdMsg = ros2message('geometry_msgs/Twist');
-            cmdMsg.linear.x = 0;
-            cmdMsg.angular.z = 0;
-            send(cmdPub, cmdMsg);
-
-            pause(0.1);
-            ranges = scan.ranges;
-            angles = scan.angle_min : scan.angle_increment : scan.angle_min + (length(ranges) - 1)*scan.angle_increment;
-            
-            % Remove invalid ranges
-            valid = isfinite(ranges);
-            ranges = ranges(valid);
-            angles = angles(valid);
-            
-            % Convert to Cartesian coordinates
-            x = ranges .* cos(angles);
-            y = ranges .* sin(angles);
-
-            % Filter left side points (60° to 120°)
-            left_mask = angles > deg2rad(75) & angles < deg2rad(105);
-            x_left = x(left_mask);
-            y_left = y(left_mask);
-            
-            % Filter right side points (-120° to -60°)
-            right_mask = angles > deg2rad(-75) & angles < deg2rad(-105);
-            x_right = x(right_mask);
-            y_right = y(right_mask);
-
-            % Fit left wall
-            if length(x_left) > 5
-                p_left = polyfit(x_left, y_left, 1); % [slope, intercept]
-                angle_left = atan(p_left(1));        % orientation of left wall
-            else
-                angle_left = NaN;
-            end
-            
-            % Fit right wall
-            if length(x_right) > 5
-                p_right = polyfit(x_right, y_right, 1);
-                angle_right = atan(p_right(1));
-            else
-                angle_right = NaN;
-            end
-            if isfinite(angle_left) && isfinite(angle_right)
-                % Average the wall angles (modulo pi, since walls face opposite)
-                wall_angle = wrapToPi((angle_left + angle_right)/2);
-                
-                % Rotate 90° to get hallway direction
-                hallway_heading = wrapToPi(wall_angle + 0);
-            else 
-                hallway_heading = orientation(3)
-            end
-            quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
-            orientation = quat2eul(quat);
-            pause(0.1);
-            init_heading = wrapToPi(hallway_heading - orientation(3));
-            pause(0.1);
-            quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
-            orientation = quat2eul(quat);  % Convert quaternion to Euler angles
-            heading =  wrapToPi(orientation(3) - init_heading);% - init_heading; % Extract heading (yaw)
-            raw_pos = [pose.position.x pose.position.y];
-            relative_pos = raw_pos - init_pos;
-            rotation_matrix = [cos(-init_heading), -sin(-init_heading); sin(-init_heading), cos(-init_heading)];
-            position = (rotation_matrix * relative_pos')' + start;
-            pause(0.1);
-        end
+        
 
         %% Reached goal, circle search and new path
         if (abs(position(1) - goal(1)) < 0.05 && abs(position(2) - goal(2)) < 0.05 && i == length(x_interp))
@@ -215,7 +138,7 @@ try
             send(cmdPub, cmdMsg);
 
             
-            while abs(heading) - des_ang > 0.04
+            while abs(heading - des_ang) > 0.04
                 pause(0.1);
                 quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
                 orientation = quat2eul(quat);  % Convert quaternion to Euler angles
@@ -251,7 +174,7 @@ try
             send(cmdPub, cmdMsg);
 
             
-            while abs(heading) - des_ang > 0.04
+            while abs(heading - des_ang) > 0.04
                 pause(0.1);
                 quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
                 orientation = quat2eul(quat);  % Convert quaternion to Euler angles
@@ -297,10 +220,11 @@ try
             position = (rotation_matrix * relative_pos')' + start;
             pause(0.5);
             start2 = [position(1) position(2)];
-            goal = [26.5 5.54];
+            goal = [26.8 5.3];
             path = new_createPRMpath(start2, goal, map);
-            
+            init_timer = tic();
             pause(0.5);
+            
             x_waypoints = path(:,1);
             y_waypoints = path(:,2);
             t_waypoints = 1:length(path);
@@ -405,11 +329,17 @@ try
             angularVelocity = angularVelocity - repulsiveY * 2.5;
         end
         %% Publish velocity commands
-        cmdMsg = ros2message('geometry_msgs/Twist');
-        cmdMsg.linear.x = clip(linearVelocity, -0.2, 0.2);
-        cmdMsg.angular.z = clip(angularVelocity, -2.0, 2.0);
-        send(cmdPub, cmdMsg);
-    
+        if toc(init_timer) > 4
+            cmdMsg = ros2message('geometry_msgs/Twist');
+            cmdMsg.linear.x = clip(linearVelocity, -0.2, 0.2);
+            cmdMsg.angular.z = clip(angularVelocity, -2.0, 2.0);
+            send(cmdPub, cmdMsg);
+        else
+            cmdMsg = ros2message('geometry_msgs/Twist');
+            cmdMsg.linear.x = 0;
+            cmdMsg.angular.z = 0;
+            send(cmdPub, cmdMsg);
+        end
         %% Pause to visualize and delete old plots
         pause(0.01)
     
@@ -500,7 +430,7 @@ function circleSearchFunc(prog, cmdPub, init_heading)
                 cmdMsg.angular.z = 0;
                 send(cmdPub, cmdMsg);
                 pause(0.5)
-                distance = circleIdentify(image);
+                distance = circleIdentify(image, prog);
             end
             if any(distance ~= 0)
                 %imshow(image);
@@ -519,7 +449,7 @@ function circleSearchFunc(prog, cmdPub, init_heading)
             cmdMsg.angular.z = turn_speed;
             send(cmdPub, cmdMsg);
     
-            while abs(heading) - des_ang > 0.04 && all(distance == 0)
+            while abs(heading - des_ang) > 0.04 && all(distance == 0)
                 pause(0.1);
                 quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
                 orientation = quat2eul(quat);  % Convert quaternion to Euler angles
@@ -559,7 +489,7 @@ function circleSearchFunc(prog, cmdPub, init_heading)
                 while distance < 0.95
                     pause(0.1);
                     im = image;
-                    distance = circleIdentify(im);
+                    distance = circleIdentify(im, prog);
     
                 end
                 if any(distance ~= 0)
@@ -582,7 +512,7 @@ function circleSearchFunc(prog, cmdPub, init_heading)
                 while distance > 1.1
                     pause(0.1)
                     im = image;
-                    distance = circleIdentify(im);
+                    distance = circleIdentify(im, prog);
     
                 end
                 if any(distance ~= 0)
@@ -604,12 +534,23 @@ function circleSearchFunc(prog, cmdPub, init_heading)
                     cmdMsg.angular.z = turn_speed;
                     send(cmdPub, cmdMsg);
             
-                    while abs(heading) - des_ang > 0.04 && all(distance == 0)
+                    while abs(heading - des_ang) > 0.04 && all(distance == 0)
                         pause(0.1);
                         quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
                         orientation = quat2eul(quat);  % Convert quaternion to Euler angles
                         heading =  wrapToPi(orientation(3) - init_heading);
                     end
+                    cmdMsg = ros2message('geometry_msgs/Twist');
+                    cmdMsg.linear.x = 0;
+                    cmdMsg.angular.z = 0;
+                    send(cmdPub, cmdMsg);
+                    pause(0.1);
+                    disp("Drive forward");
+                    cmdMsg = ros2message('geometry_msgs/Twist');
+                    cmdMsg.linear.x = 0.2;
+                    cmdMsg.angular.z = 0;
+                    send(cmdPub, cmdMsg);
+                    pause(0.5);
                     cmdMsg = ros2message('geometry_msgs/Twist');
                     cmdMsg.linear.x = 0;
                     cmdMsg.angular.z = 0;
