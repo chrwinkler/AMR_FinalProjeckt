@@ -1,7 +1,7 @@
 function circleSearch(prog)
     done = 0;
     distance = 0;
-    
+    prog = 0;
     if prog == 0
         fileName = "B.png"
     else
@@ -25,29 +25,29 @@ function circleSearch(prog)
         if (distance ~= 0)
             if (distance - 1 < 0.05)
                 im = image;
-                imwrite(im,filename = fileName);
+                imwrite(im, fileName);
             elseif (distance < 1)
                 distDif = 1 - distance;
     
                 cmdMsg = ros2message('geometry_msgs/Twist');
-                cmdMsg.linear.x = -1;
+                cmdMsg.linear.x = -0.1;
     
                 send(cmdPub, cmdMsg);
-                pause(distDif);
+                pause(distDif*10);
                 cmdMsg = ros2message('geometry_msgs/Twist');
                 cmdMsg.linear.x = 0;
                 send(cmdPub, cmdMsg);
                 im = image;
-                imwrite(im,filename = fileName);
+                imwrite(im, fileName);
     
             else
                 distDif = distance - 1;
     
                 cmdMsg = ros2message('geometry_msgs/Twist');
-                cmdMsg.linear.x = 1;
+                cmdMsg.linear.x = 0.1;
     
                 send(cmdPub, cmdMsg);
-                pause(distDif);
+                pause(distDif*10);
                 cmdMsg = ros2message('geometry_msgs/Twist');
                 cmdMsg.linear.x = 0;
                 send(cmdPub, cmdMsg);

@@ -1,4 +1,4 @@
-function distance = circleIdentify()
+function distance = circleIdentify(image)
     im = image;
     HSV = rgb2hsv(im);  % Correct usage
 
@@ -11,12 +11,12 @@ function distance = circleIdentify()
     %blue_mask = (hue > 0.55) & (hue < 0.7);  % Blue
     %green_mask = (hue > 0.20) & (hue < 0.50); % Green
     %red_mask = (hue > 0.95) | (hue < 0.05);
-    orange_mask = (hue > 0.09) & (hue < 0.15); % Orange
-    purple_mask = (hue > 0.68) & (hue < 0.77); % Purple
-
+    orange_mask = (hue > 0.1) & (hue < 0.15); % Orange
+    purple_mask = (hue > 0.7) & (hue < 0.85); % Purple
+        
     color_mask = orange_mask | purple_mask;
-    saturation_mask = saturation > 0.2;  % Ensure it's not a dull color
-    value_mask = value > 0.1;  % Ensure brightness
+    saturation_mask = saturation > 0.3;  % Ensure it's not a dull color
+    value_mask = value > 0.5;  % Ensure brightness
 
     % Combine masks
     mask =  color_mask & saturation_mask & value_mask;
@@ -35,11 +35,15 @@ function distance = circleIdentify()
     imBW = imopen(imBW, se);
     imBW = imclose(imBW, se);
     
-    [centers, radii, metric] = imfindcircles(imBW, [10 500], 'ObjectPolarity','bright', 'Sensitivity',0.87);
-    circle_diameter = radii * 2
+    
+    [centers, radii, metric] = imfindcircles(imBW, [10 500], 'ObjectPolarity','bright', 'Sensitivity',0.8);
+    circle_diameter = radii * 2;
     f = 1247;
     if (isempty(circle_diameter))
-        circle_diameter = 0;
+        
+        distance = 0;
+    else
+        %imshow(imBW);
+        distance = nonzeros((f * 0.1) / circle_diameter)
     end
-    distance = (f * 0.1) / circle_diameter
 end

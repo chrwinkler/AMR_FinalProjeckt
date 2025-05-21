@@ -89,7 +89,8 @@ try
         position = [pose.position.x pose.position.y] - init_pos + Offset;
         quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
         orientation = quat2eul(quat);  % Convert quaternion to Euler angles
-        heading =  wrapToPi(orientation(3) - init_heading);% - init_heading; % Extract heading (yaw)
+        heading =  wrapToPi(orientation(3) - init_heading)% - init_heading; % Extract heading (yaw)
+        %heading = orientation(3);
         if(toc(time) - lastVisualUpdate > visualUpdateRate)
             visualise = updatePose(visualise, position, heading);
         end

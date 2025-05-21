@@ -89,7 +89,7 @@ try
         position = [pose.position.x pose.position.y] - init_pos + Offset;
         quat = [pose.orientation.x pose.orientation.y pose.orientation.z pose.orientation.w];
         orientation = quat2eul(quat);  % Convert quaternion to Euler angles
-        heading =  wrapToPi(orientation(3) - init_heading);% - init_heading; % Extract heading (yaw)
+        heading =  wrapToPi(orientation(3) - init_heading)% - init_heading; % Extract heading (yaw)
         if(toc(time) - lastVisualUpdate > visualUpdateRate)
             visualise = updatePose(visualise, position, heading);
         end
@@ -152,44 +152,6 @@ try
         prevErrorAng = errorAng;
         prevErrorPos = errorPos;
         
-        %% Obstacle avoidance
-        scan_front = [scan.ranges(351:360); scan.ranges(1:10)];
-        scan_back = scan.ranges(171:190);
-        
-        d_0 = 0.05;   % Influence distance
-        beta = 0.0001;  % Strength of repulsion
-        
-        % Initialize repulsive force vectors
-        fr_front = zeros(length(scan_front), 2);
-        fr_back = zeros(length(scan_back), 2);   
-        for i = 1:length(scan_front)
-            if scan_front(i) <= d_0 && scan_front(i) > 0  % Valid range
-                angle = deg2rad(351 + i - 1);  % Convert to radians (assumes scan angle is known)
-                magnitude = (2 * beta / scan_front(i)^2) * (1/scan_front(i) - 1/d_0);
-                fr_front(i,1) = - magnitude * cos(angle);  % X component
-                fr_front(i,2) = - magnitude * sin(angle);  % Y component
-            end
-        end
-        
-        for i = 1:length(scan_back)
-            if scan_back(i) <= d_0 && scan_back(i) > 0
-                angle = deg2rad(171 + i - 1);
-                magnitude = (2 * beta / scan_back(i)^2) * (1/scan_back(i) - 1/d_0);
-                fr_back(i,1) = magnitude * cos(angle);
-                fr_back(i,2) = magnitude * sin(angle);
-            end
-        end
-        
-        % Compute total repulsive force
-        F_total = sum(fr_front,1) - sum(fr_back,1);
-
-        
-        repulsiveX = F_total(1);
-        repulsiveY = F_total(2);
-        %linearVelocity = 0;
-        %angularVelocity = 0;
-        linearVelocity = linearVelocity + repulsiveX;
-        angularVelocity = angularVelocity + repulsiveY;
         
         %% Publish velocity commands
         cmdMsg = ros2message('geometry_msgs/Twist');
