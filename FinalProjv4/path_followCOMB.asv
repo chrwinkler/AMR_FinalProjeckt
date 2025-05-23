@@ -90,7 +90,7 @@ try
     end
     
     bestOffset = 0;
-    corrected = false;
+    
 
     init_timer = tic();
     %% Infinite loop for real-time visualization, until the figure is closed
@@ -118,14 +118,12 @@ try
         if(toc(time) - lastVisualUpdate > visualUpdateRate)
             visualise = updatePose(visualise, position, heading);
         end
-        %bestOffset = 0;
-        %robotPose = [position(1) position(2) heading];
-        %bestOffset = correctHeadingFromLidarOdom(robotPose, map);
+        bestOffset = 0;
+        robotPose = [position(1) position(2) heading];
+        bestOffset = correctHeadingFromLidarOdom(robotPose, map);
 
-       if position(2) < 22 && corrected == false
-           best_offset = deg2rad(-10);
-           corrected = true;
-       end
+       
+
         %% Reached goal, circle search and new path
         if (abs(position(1) - goal(1)) < 0.05 && abs(position(2) - goal(2)) < 0.05 && i == length(x_interp))
             cmdMsg = ros2message('geometry_msgs/Twist');
@@ -231,7 +229,7 @@ try
             position = (rotation_matrix * relative_pos')' + start;
             pause(0.5);
             start2 = [position(1) position(2)];
-            goal = [27.18 5.7];
+            goal = [26.8 5.3];
             path = new_createPRMpath(start2, goal, map);
             init_timer = tic();
             pause(0.5);
@@ -643,7 +641,7 @@ function bestOffset = correctHeadingFromLidarOdom(robotPose, map)
              sin(testYaw),  cos(testYaw)];
 
         % Transform LIDAR points to map frame
-        ptsMap = R * lidarPoints + repmat([robotX; robotY], 1, size(lidarPoints, 2));
+        ptsMap = R * lidarPoints + [robotX; robotY];
 
         % Count "misses" (points in free space)
         misses = 0;
